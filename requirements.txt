@@ -1,0 +1,1 @@
+# Fetch script uses Python stdlib only (urllib). No third-party deps required.
