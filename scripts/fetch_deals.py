@@ -574,23 +574,28 @@ def nearest_house_number(
 
 
 ROUTE2_CACHE_PATH = DATA_DIR / "route2-geometry-cache.json"
+ROUTE20_CACHE_PATH = DATA_DIR / "route20-geometry-cache.json"
 
 
-def fetch_route2_lines() -> list[list[list[float]]] | None:
-    """Fetch Route 2's (כביש 2, the coastal highway) real geometry through the
-    Herzliya bbox. Used to classify deals as Herzliya Pituach (west of it)."""
-    if ROUTE2_CACHE_PATH.exists():
-        return json.loads(ROUTE2_CACHE_PATH.read_text(encoding="utf-8"))
+def fetch_route_lines(
+    ref: str, cache_path: Path, label: str
+) -> list[list[list[float]]] | None:
+    """Fetch a numbered route's (e.g. כביש 2, כביש 20) real geometry through
+    the Herzliya bbox, used to classify deals by which side of the road
+    they're on (e.g. Herzliya Pituach is west of Route 2; a separate
+    expensive strip sits west of Route 20)."""
+    if cache_path.exists():
+        return json.loads(cache_path.read_text(encoding="utf-8"))
 
     query = (
         "[out:json][timeout:60];\n"
-        f'way["highway"]["ref"~"^2($|;| )"]({HERZLIYA_BBOX});\n'
+        f'way["highway"]["ref"~"^{ref}($|;| )"]({HERZLIYA_BBOX});\n'
         "out geom;"
     )
     try:
         data = overpass_query(query)
     except (urllib.error.URLError, TimeoutError, RuntimeError) as exc:
-        print(f"  Route 2 fetch failed, skipping Pituach exclusion: {exc}")
+        print(f"  {label} fetch failed, skipping this exclusion: {exc}")
         return None
 
     lines = []
@@ -602,22 +607,22 @@ def fetch_route2_lines() -> list[list[list[float]]] | None:
         return None
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    ROUTE2_CACHE_PATH.write_text(json.dumps(lines, ensure_ascii=False), encoding="utf-8")
+    cache_path.write_text(json.dumps(lines, ensure_ascii=False), encoding="utf-8")
     return lines
 
 
-def is_west_of_route2(lat: float, lon: float, route2_lines: list[list[list[float]]]) -> bool:
+def is_west_of_road(lat: float, lon: float, road_lines: list[list[list[float]]]) -> bool:
     """True if (lat, lon) is on the sea side (west, i.e. lower longitude) of
-    the nearest Route 2 segment, i.e. inside Herzliya Pituach.
+    the nearest segment of the given road geometry.
 
     Uses latitude-interpolated road longitude (direction-invariant: doesn't
     matter which way each OSM way segment was drawn) rather than a
-    cross-product sign, since Route 2 here runs roughly north-south and is
-    stitched from many independently-directed way fragments.
+    cross-product sign, since these roads run roughly north-south here and
+    are each stitched from many independently-directed way fragments.
     """
     best_dist = math.inf
     best_segment = None
-    for coords in route2_lines:
+    for coords in road_lines:
         for a, b in zip(coords, coords[1:]):
             lat1, lon1 = a
             lat2, lon2 = b
@@ -849,15 +854,23 @@ def main() -> None:
     print(f"Streets with OSM address points: {streets_with_addresses}/{len(streets_needed)}")
 
     print("Fetching Route 2 geometry (to exclude Herzliya Pituach)…")
-    route2_lines = fetch_route2_lines()
+    route2_lines = fetch_route_lines("2", ROUTE2_CACHE_PATH, "Route 2")
     if route2_lines:
         print(f"  Route 2: {len(route2_lines)} way segments")
     else:
         print("  Route 2 geometry unavailable — Pituach exclusion disabled for this run")
 
+    print("Fetching Route 20 geometry (to exclude the western strip beyond it)…")
+    route20_lines = fetch_route_lines("20", ROUTE20_CACHE_PATH, "Route 20")
+    if route20_lines:
+        print(f"  Route 20: {len(route20_lines)} way segments")
+    else:
+        print("  Route 20 geometry unavailable — that exclusion disabled for this run")
+
     deals: list[dict] = []
     skipped_geo = 0
     skipped_pituach = 0
+    skipped_west_of_20 = 0
     skipped_wrong_city = 0
     placed_on_line = 0
     placed_fallback = 0
@@ -883,8 +896,12 @@ def main() -> None:
             skipped_wrong_city += 1
             continue
 
-        if route2_lines and is_west_of_route2(lat, lon, route2_lines):
+        if route2_lines and is_west_of_road(lat, lon, route2_lines):
             skipped_pituach += 1
+            continue
+
+        if route20_lines and is_west_of_road(lat, lon, route20_lines):
+            skipped_west_of_20 += 1
             continue
 
         gush = str(rec.get("gush") or "")
@@ -918,7 +935,8 @@ def main() -> None:
         f"fallback point: {placed_fallback}, skipped no-geo: {skipped_geo}, "
         f"skipped wrong-city: {skipped_wrong_city}, "
         f"approx house number matched: {houses_matched}/{len(deals)}, "
-        f"excluded Herzliya Pituach: {skipped_pituach})"
+        f"excluded Herzliya Pituach: {skipped_pituach}, "
+        f"excluded west of Route 20: {skipped_west_of_20})"
     )
     if not deals:
         raise SystemExit("No deals left after filtering/geocoding")
@@ -936,6 +954,7 @@ def main() -> None:
             "dealCount": len(deals),
             "source": "odata.org.il nadlan mirror + OSM/Overpass street geometry",
             "excludedHerzliyaPituach": skipped_pituach,
+            "excludedWestOfRoute20": skipped_west_of_20,
             "excludedWrongCity": skipped_wrong_city,
             "notes": (
                 "Deals have no house number, so each is placed at a random point "
@@ -945,8 +964,9 @@ def main() -> None:
                 "sources are filtered against Herzliya's real administrative "
                 "boundary (not just a bounding box) to reject same-named streets "
                 "that actually belong to a neighboring city like Ra'anana. Herzliya "
-                "Pituach (west of Route 2) is excluded entirely so its high "
-                "prices don't skew the year-normalized percentile scores. Scores "
+                "Pituach (west of Route 2) and the separate expensive strip west of "
+                "Route 20 are both excluded entirely so their high prices don't skew "
+                "the year-normalized percentile scores. Scores "
                 "are percentile ranks 1-100 within each calendar year. The "
                 "underlying registry data currently lags roughly a year or more "
                 "behind the present, so the most recent 1-2 years are typically "

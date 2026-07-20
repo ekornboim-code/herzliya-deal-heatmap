@@ -5,5 +5,6 @@ data/street-geocode-cache.json
 data/street-lines-cache.json
 data/street-address-cache.json
 data/route2-geometry-cache.json
+data/route20-geometry-cache.json
 data/herzliya-boundary-cache.json
 data/visual-check/
