@@ -1,13 +1,22 @@
 import { activeScore, formatPrice, scoreToColor } from "./normalize.js";
 import { ScoreHeatLayer } from "./heatmap-grid.js";
 
+const CITIES = {
+  herzliya: { label: "Herzliya" },
+  haifa: { label: "Haifa" },
+  "beer-sheva": { label: "Beer Sheva" },
+};
+const DEFAULT_CITY = "herzliya";
+
 const state = {
+  city: DEFAULT_CITY,
   deals: [],
   metric: "perSqm", // perSqm | total
   mode: "dots", // dots | heat
   map: null,
   dotsLayer: null,
   heatLayer: null,
+  loadSeq: 0, // guards against a slow, superseded fetch overwriting a newer city switch
 };
 
 function $(sel) {
@@ -125,6 +134,23 @@ function setMode(mode) {
   applyMode();
 }
 
+async function setCity(city) {
+  if (!CITIES[city]) return;
+  state.city = city;
+  document.querySelectorAll("[data-city]").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.city === city);
+  });
+  try {
+    await loadData(city);
+  } catch (err) {
+    console.error(err);
+    setStatus(
+      `${err.message}. Run: python3 scripts/fetch_deals.py ${city} then serve this folder.`,
+      true
+    );
+  }
+}
+
 function initMap() {
   state.map = L.map("map", { zoomControl: true }).setView([32.165, 34.845], 13);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -140,13 +166,22 @@ function wireControls() {
   document.querySelectorAll("[data-mode]").forEach((btn) => {
     btn.addEventListener("click", () => setMode(btn.dataset.mode));
   });
+  document.querySelectorAll("[data-city]").forEach((btn) => {
+    btn.addEventListener("click", () => setCity(btn.dataset.city));
+  });
 }
 
-async function loadData() {
+async function loadData(city) {
+  const seq = ++state.loadSeq;
   setStatus("Loading deals…");
-  const res = await fetch("data/herzliya-deals.json");
+  $("#title").textContent = `${CITIES[city].label} residential deals`;
+  $("#meta").textContent = "Loading…";
+
+  const res = await fetch(`data/${city}-deals.json`);
   if (!res.ok) throw new Error(`Failed to load data (${res.status})`);
   const payload = await res.json();
+  if (seq !== state.loadSeq) return; // a newer city switch started while this fetch was in flight
+
   state.deals = payload.deals || [];
   const meta = payload.meta || {};
   const years = meta.years ? `${meta.years[0]}–${meta.years[1]}` : "";
@@ -177,7 +212,13 @@ async function main() {
     }
     initMap();
     wireControls();
-    await loadData();
+    const params = new URLSearchParams(location.search);
+    const initialCity = CITIES[params.get("city")] ? params.get("city") : DEFAULT_CITY;
+    state.city = initialCity;
+    document.querySelectorAll("[data-city]").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.city === initialCity);
+    });
+    await loadData(initialCity);
     applyUrlParams();
   } catch (err) {
     console.error(err);

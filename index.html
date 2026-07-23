@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Herzliya Residential Deal Heatmap</title>
+    <title>Israel Residential Deal Heatmap</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -17,10 +17,16 @@
     <div id="app">
       <header class="toolbar">
         <div class="brand">
-          <h1>Herzliya residential deals</h1>
+          <h1 id="title">Residential deals</h1>
           <div class="meta" id="meta">Loading…</div>
         </div>
         <div class="controls">
+          <div class="group" role="tablist" aria-label="City">
+            <label>City</label>
+            <button type="button" data-city="herzliya" class="active">Herzliya</button>
+            <button type="button" data-city="haifa">Haifa</button>
+            <button type="button" data-city="beer-sheva">Beer Sheva</button>
+          </div>
           <div class="group" role="tablist" aria-label="Score metric">
             <label>Score</label>
             <button type="button" data-metric="perSqm" class="active">₪ / m²</button>
