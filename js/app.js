@@ -5,6 +5,8 @@ const CITIES = {
   herzliya: { label: "Herzliya" },
   haifa: { label: "Haifa" },
   "beer-sheva": { label: "Beer Sheva" },
+  raanana: { label: "Ra'anana" },
+  "tel-aviv": { label: "Tel Aviv-Yafo" },
 };
 const DEFAULT_CITY = "herzliya";
 
@@ -137,9 +139,8 @@ function setMode(mode) {
 async function setCity(city) {
   if (!CITIES[city]) return;
   state.city = city;
-  document.querySelectorAll("[data-city]").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.city === city);
-  });
+  const select = $("#city-select");
+  if (select && select.value !== city) select.value = city;
   try {
     await loadData(city);
   } catch (err) {
@@ -166,9 +167,10 @@ function wireControls() {
   document.querySelectorAll("[data-mode]").forEach((btn) => {
     btn.addEventListener("click", () => setMode(btn.dataset.mode));
   });
-  document.querySelectorAll("[data-city]").forEach((btn) => {
-    btn.addEventListener("click", () => setCity(btn.dataset.city));
-  });
+  const citySelect = $("#city-select");
+  if (citySelect) {
+    citySelect.addEventListener("change", () => setCity(citySelect.value));
+  }
 }
 
 async function loadData(city) {
@@ -189,7 +191,7 @@ async function loadData(city) {
   if (!state.deals.length) throw new Error("Dump contains no deals");
 
   const bounds = L.latLngBounds(state.deals.map((d) => [d.lat, d.lon]));
-  state.map.fitBounds(bounds.pad(0.08));
+  state.map.flyToBounds(bounds.pad(0.08), { duration: 1.1 });
   buildDots();
   applyMode();
   setStatus("");
@@ -215,9 +217,8 @@ async function main() {
     const params = new URLSearchParams(location.search);
     const initialCity = CITIES[params.get("city")] ? params.get("city") : DEFAULT_CITY;
     state.city = initialCity;
-    document.querySelectorAll("[data-city]").forEach((btn) => {
-      btn.classList.toggle("active", btn.dataset.city === initialCity);
-    });
+    const citySelect = $("#city-select");
+    if (citySelect) citySelect.value = initialCity;
     await loadData(initialCity);
     applyUrlParams();
   } catch (err) {

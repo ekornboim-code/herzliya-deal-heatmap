@@ -117,6 +117,20 @@ CITIES: list[CityConfig] = [
         bbox="31.18,34.72,31.33,34.87",
         relation_id=1377264,
     ),
+    CityConfig(
+        slug="raanana",
+        display_name="רעננה",
+        odata_city_name="רעננה",
+        bbox="32.159,34.827,32.220,34.901",
+        relation_id=1383630,
+    ),
+    CityConfig(
+        slug="tel-aviv",
+        display_name="תל אביב-יפו",
+        odata_city_name="תל אביב -יפו",
+        bbox="32.019,34.729,32.157,34.862",
+        relation_id=1382494,
+    ),
 ]
 
 

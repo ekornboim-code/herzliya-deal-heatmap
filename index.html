@@ -21,11 +21,15 @@
           <div class="meta" id="meta">Loading…</div>
         </div>
         <div class="controls">
-          <div class="group" role="tablist" aria-label="City">
-            <label>City</label>
-            <button type="button" data-city="herzliya" class="active">Herzliya</button>
-            <button type="button" data-city="haifa">Haifa</button>
-            <button type="button" data-city="beer-sheva">Beer Sheva</button>
+          <div class="group group-select">
+            <label for="city-select">City</label>
+            <select id="city-select" aria-label="City">
+              <option value="herzliya">Herzliya</option>
+              <option value="haifa">Haifa</option>
+              <option value="beer-sheva">Beer Sheva</option>
+              <option value="raanana">Ra'anana</option>
+              <option value="tel-aviv">Tel Aviv-Yafo</option>
+            </select>
           </div>
           <div class="group" role="tablist" aria-label="Score metric">
             <label>Score</label>
